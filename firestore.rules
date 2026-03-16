@@ -11,6 +11,7 @@ service cloud.firestore {
     //   - uid: string (required)
     //   - displayName: string (required)
     //   - email: string (required)
+    //   - role: string (required, 'user', 'admin')
     //   - points: number (required)
     //   - createdAt: timestamp (required)
     //
@@ -24,6 +25,7 @@ service cloud.firestore {
     //   - options: list of strings (required)
     //   - deadline: timestamp (required)
     //   - status: string (required, 'open', 'closed', 'resolved')
+    //   - approvalStatus: string (required, 'pending', 'approved', 'rejected')
     //   - winningOption: string (optional)
     //   - totalPool: number (required)
     //   - createdAt: timestamp (required)
@@ -46,6 +48,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin' ||
+          (request.auth.token.email == "ompingle005@gmail.com" && request.auth.token.email_verified == true));
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -60,19 +68,20 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      let allowed = ['uid', 'displayName', 'email', 'points', 'createdAt'];
+      let allowed = ['uid', 'displayName', 'email', 'role', 'points', 'createdAt'];
       return data.keys().hasAll(allowed) &&
              data.keys().hasOnly(allowed) &&
              data.uid is string && data.uid == request.auth.uid &&
              data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
+             data.role is string && data.role in ['user', 'admin'] &&
              data.points is number && data.points >= 0 &&
              data.createdAt is timestamp;
     }
 
     function isValidBet(data) {
-      let required = ['creatorId', 'creatorName', 'title', 'description', 'options', 'deadline', 'status', 'totalPool', 'createdAt'];
-      let allowed = ['creatorId', 'creatorName', 'title', 'description', 'options', 'deadline', 'status', 'winningOption', 'totalPool', 'createdAt'];
+      let required = ['creatorId', 'creatorName', 'title', 'description', 'options', 'deadline', 'status', 'approvalStatus', 'totalPool', 'createdAt'];
+      let allowed = ['creatorId', 'creatorName', 'title', 'description', 'options', 'deadline', 'status', 'approvalStatus', 'winningOption', 'totalPool', 'createdAt'];
       return data.keys().hasAll(required) &&
              data.keys().hasOnly(allowed) &&
              data.creatorId is string && data.creatorId == request.auth.uid &&
@@ -82,6 +91,7 @@ service cloud.firestore {
              data.options is list && data.options.size() >= 2 && data.options.size() <= 10 &&
              data.deadline is timestamp &&
              data.status in ['open', 'closed', 'resolved'] &&
+             data.approvalStatus in ['pending', 'approved', 'rejected'] &&
              (!('winningOption' in data) || data.winningOption == null || data.winningOption is string) &&
              data.totalPool is number && data.totalPool >= 0 &&
              data.createdAt is timestamp;
@@ -105,13 +115,14 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
       allow update: if isAuthenticated() &&
                     (
                       (isOwner(userId) && isValidUser(request.resource.data) &&
                        request.resource.data.uid == resource.data.uid &&
                        request.resource.data.createdAt == resource.data.createdAt &&
-                       request.resource.data.email == resource.data.email) ||
+                       request.resource.data.email == resource.data.email &&
+                       (request.resource.data.role == resource.data.role || isAdmin())) ||
                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points']) &&
                        request.resource.data.points >= 0 &&
                        (isOwner(userId) || request.resource.data.points > resource.data.points))
@@ -120,7 +131,7 @@ service cloud.firestore {
 
     match /bets/{betId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidBet(request.resource.data);
+      allow create: if isAuthenticated() && isValidBet(request.resource.data) && request.resource.data.approvalStatus == 'pending';
       allow update: if isAuthenticated() &&
                     (
                       // Creator can update status and winningOption
@@ -128,6 +139,11 @@ service cloud.firestore {
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'winningOption']) &&
                        request.resource.data.status in ['open', 'closed', 'resolved'] &&
                        (!('winningOption' in request.resource.data) || request.resource.data.winningOption == null || request.resource.data.winningOption is string)
+                      ) ||
+                      // Admin can update approvalStatus
+                      (isAdmin() &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approvalStatus']) &&
+                       request.resource.data.approvalStatus in ['pending', 'approved', 'rejected']
                       ) ||
                       // Anyone can update totalPool when placing a wager
                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalPool']) &&

@@ -148,7 +148,8 @@ export default function BetDetails({ userPoints }: { userPoints: number }) {
   const isCreator = auth.currentUser?.uid === bet.creatorId;
   const deadlineDate = bet.deadline?.toDate ? bet.deadline.toDate() : new Date(bet.deadline);
   const deadlinePassed = isPast(deadlineDate);
-  const canWager = bet.status === 'open' && !deadlinePassed;
+  const isApproved = bet.approvalStatus === 'approved';
+  const canWager = bet.status === 'open' && !deadlinePassed && isApproved;
   const userWagers = wagers.filter(w => w.userId === auth.currentUser?.uid);
   const totalUserWagered = userWagers.reduce((sum, w) => sum + w.amount, 0);
 
@@ -159,9 +160,26 @@ export default function BetDetails({ userPoints }: { userPoints: number }) {
   }, {});
 
   return (
-    <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {!isApproved && (
+        <div className={`p-4 rounded-lg border ${
+          bet.approvalStatus === 'rejected' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-orange-50 border-orange-200 text-orange-800'
+        }`}>
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertCircle className="w-5 h-5" />
+            {bet.approvalStatus === 'rejected' ? 'Bet Rejected' : 'Pending Approval'}
+          </div>
+          <p className="text-sm mt-1">
+            {bet.approvalStatus === 'rejected' 
+              ? 'This bet has been rejected by an administrator and cannot accept wagers.' 
+              : 'This bet is currently pending approval from an administrator. Wagers cannot be placed until it is approved.'}
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
           <CardHeader>
             <div className="flex justify-between items-start mb-2">
               <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
@@ -463,6 +481,7 @@ export default function BetDetails({ userPoints }: { userPoints: number }) {
             </CardContent>
           </Card>
         )}
+      </div>
       </div>
     </div>
   );

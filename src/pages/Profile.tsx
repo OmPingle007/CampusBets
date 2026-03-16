@@ -89,13 +89,22 @@ export default function Profile() {
                   <Link key={bet.id} to={`/bet/${bet.id}`} className="block p-4 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-colors">
                     <div className="flex justify-between items-start mb-1">
                       <h3 className="font-semibold text-gray-900 line-clamp-1">{bet.title}</h3>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        bet.status === 'open' ? 'bg-green-100 text-green-800' :
-                        bet.status === 'resolved' ? 'bg-indigo-100 text-indigo-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {bet.status.toUpperCase()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(bet.approvalStatus === 'pending' || bet.approvalStatus === 'rejected') && (
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            bet.approvalStatus === 'pending' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {bet.approvalStatus.toUpperCase()}
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          bet.status === 'open' ? 'bg-green-100 text-green-800' :
+                          bet.status === 'resolved' ? 'bg-indigo-100 text-indigo-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {bet.status.toUpperCase()}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center text-sm text-gray-500">
                       <span>{formatDistanceToNow(bet.createdAt?.toDate ? bet.createdAt.toDate() : new Date(bet.createdAt || Date.now()), { addSuffix: true })}</span>

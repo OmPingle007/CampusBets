@@ -11,13 +11,12 @@ export default function Feed() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'bets'), orderBy('createdAt', 'desc'), limit(50));
+    const q = query(collection(db, 'bets'), orderBy('createdAt', 'desc'), limit(100));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const betsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const betsData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((bet: any) => bet.approvalStatus === 'approved');
       setBets(betsData);
       setLoading(false);
     }, (error) => {

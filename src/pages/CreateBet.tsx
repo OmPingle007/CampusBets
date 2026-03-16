@@ -62,6 +62,7 @@ export default function CreateBet() {
         options: validOptions,
         deadline: Timestamp.fromDate(new Date(deadline)),
         status: 'open',
+        approvalStatus: 'pending',
         totalPool: 0,
         createdAt: serverTimestamp()
       };

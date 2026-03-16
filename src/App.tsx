@@ -5,17 +5,19 @@ import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment, onSnapshot 
 import { auth, db, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from './components/ui/button';
-import { Coins, LogOut, PlusCircle, UserCircle, Home } from 'lucide-react';
+import { Coins, LogOut, PlusCircle, UserCircle, Home, Shield } from 'lucide-react';
 
 // Pages
 import Feed from './pages/Feed';
 import CreateBet from './pages/CreateBet';
 import BetDetails from './pages/BetDetails';
 import Profile from './pages/Profile';
+import AdminDashboard from './pages/AdminDashboard';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [points, setPoints] = useState<number>(0);
+  const [userRole, setUserRole] = useState<string>('user');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,15 +30,18 @@ export default function App() {
           
           if (!userDoc.exists()) {
             // Create new user profile
+            const isDefaultAdmin = currentUser.email === 'ompingle005@gmail.com';
             const newUser = {
               uid: currentUser.uid,
               displayName: currentUser.displayName || 'Anonymous User',
               email: currentUser.email || '',
+              role: isDefaultAdmin ? 'admin' : 'user',
               points: 1000, // Starting points
               createdAt: serverTimestamp()
             };
             await setDoc(userDocRef, newUser);
             setPoints(1000);
+            setUserRole(isDefaultAdmin ? 'admin' : 'user');
           }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, 'users');
@@ -57,7 +62,9 @@ export default function App() {
     const userRef = doc(db, 'users', user.uid);
     const unsubscribePoints = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
-        setPoints(docSnap.data().points || 0);
+        const data = docSnap.data();
+        setPoints(data.points || 0);
+        setUserRole(data.role || (user.email === 'ompingle005@gmail.com' ? 'admin' : 'user'));
       }
     });
     return () => unsubscribePoints();
@@ -154,6 +161,14 @@ export default function App() {
                       <UserCircle className="w-5 h-5" />
                     </Button>
                   </Link>
+
+                  {userRole === 'admin' && (
+                    <Link to="/admin">
+                      <Button variant="ghost" size="icon" className="text-gray-600 hover:text-indigo-600 hover:bg-indigo-50">
+                        <Shield className="w-5 h-5" />
+                      </Button>
+                    </Link>
+                  )}
                   
                   <Button variant="ghost" size="icon" onClick={handleLogout} className="text-gray-600 hover:text-red-600 hover:bg-red-50">
                     <LogOut className="w-5 h-5" />
@@ -170,6 +185,7 @@ export default function App() {
               <Route path="/create" element={<CreateBet />} />
               <Route path="/bet/:id" element={<BetDetails userPoints={points} />} />
               <Route path="/profile" element={<Profile />} />
+              {userRole === 'admin' && <Route path="/admin" element={<AdminDashboard />} />}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
@@ -188,6 +204,12 @@ export default function App() {
               <UserCircle className="w-6 h-6" />
               <span className="text-xs mt-1">Profile</span>
             </Link>
+            {userRole === 'admin' && (
+              <Link to="/admin" className="flex flex-col items-center text-gray-500 hover:text-indigo-600">
+                <Shield className="w-6 h-6" />
+                <span className="text-xs mt-1">Admin</span>
+              </Link>
+            )}
           </div>
         </div>
       </BrowserRouter>

@@ -8,10 +8,11 @@
         "uid": { "type": "string" },
         "displayName": { "type": "string" },
         "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
         "points": { "type": "number", "description": "Virtual currency balance" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "displayName", "email", "points", "createdAt"]
+      "required": ["uid", "displayName", "email", "role", "points", "createdAt"]
     },
     "Bet": {
       "title": "Bet",
@@ -28,11 +29,12 @@
         },
         "deadline": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["open", "closed", "resolved"] },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
         "winningOption": { "type": "string" },
         "totalPool": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["creatorId", "creatorName", "title", "description", "options", "deadline", "status", "totalPool", "createdAt"]
+      "required": ["creatorId", "creatorName", "title", "description", "options", "deadline", "status", "approvalStatus", "totalPool", "createdAt"]
     },
     "Wager": {
       "title": "Wager",
