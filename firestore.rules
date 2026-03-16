@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (required)
+    //   - email: string (required)
+    //   - points: number (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: bets
+    // Document ID: {betId}
+    // Fields:
+    //   - creatorId: string (required)
+    //   - creatorName: string (required)
+    //   - title: string (required)
+    //   - description: string (required)
+    //   - options: list of strings (required)
+    //   - deadline: timestamp (required)
+    //   - status: string (required, 'open', 'closed', 'resolved')
+    //   - winningOption: string (optional)
+    //   - totalPool: number (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: wagers
+    // Document ID: {wagerId}
+    // Fields:
+    //   - betId: string (required)
+    //   - userId: string (required)
+    //   - userName: string (required)
+    //   - option: string (required)
+    //   - amount: number (required)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      let allowed = ['uid', 'displayName', 'email', 'points', 'createdAt'];
+      return data.keys().hasAll(allowed) &&
+             data.keys().hasOnly(allowed) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.points is number && data.points >= 0 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidBet(data) {
+      let required = ['creatorId', 'creatorName', 'title', 'description', 'options', 'deadline', 'status', 'totalPool', 'createdAt'];
+      let allowed = ['creatorId', 'creatorName', 'title', 'description', 'options', 'deadline', 'status', 'winningOption', 'totalPool', 'createdAt'];
+      return data.keys().hasAll(required) &&
+             data.keys().hasOnly(allowed) &&
+             data.creatorId is string && data.creatorId == request.auth.uid &&
+             data.creatorName is string && data.creatorName.size() > 0 && data.creatorName.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.description is string && data.description.size() >= 0 && data.description.size() < 1000 &&
+             data.options is list && data.options.size() >= 2 && data.options.size() <= 10 &&
+             data.deadline is timestamp &&
+             data.status in ['open', 'closed', 'resolved'] &&
+             (!('winningOption' in data) || data.winningOption == null || data.winningOption is string) &&
+             data.totalPool is number && data.totalPool >= 0 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidWager(data) {
+      let allowed = ['betId', 'userId', 'userName', 'option', 'amount', 'createdAt'];
+      return data.keys().hasAll(allowed) &&
+             data.keys().hasOnly(allowed) &&
+             data.betId is string && data.betId.size() > 0 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() < 100 &&
+             data.option is string && data.option.size() > 0 && data.option.size() < 100 &&
+             data.amount is number && data.amount > 0 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() &&
+                    (
+                      (isOwner(userId) && isValidUser(request.resource.data) &&
+                       request.resource.data.uid == resource.data.uid &&
+                       request.resource.data.createdAt == resource.data.createdAt &&
+                       request.resource.data.email == resource.data.email) ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points']) &&
+                       request.resource.data.points >= 0 &&
+                       (isOwner(userId) || request.resource.data.points > resource.data.points))
+                    );
+    }
+
+    match /bets/{betId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidBet(request.resource.data);
+      allow update: if isAuthenticated() &&
+                    (
+                      // Creator can update status and winningOption
+                      (request.auth.uid == resource.data.creatorId &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'winningOption']) &&
+                       request.resource.data.status in ['open', 'closed', 'resolved'] &&
+                       (!('winningOption' in request.resource.data) || request.resource.data.winningOption == null || request.resource.data.winningOption is string)
+                      ) ||
+                      // Anyone can update totalPool when placing a wager
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalPool']) &&
+                       request.resource.data.totalPool > resource.data.totalPool)
+                    );
+    }
+
+    match /wagers/{wagerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidWager(request.resource.data);
+      allow update: if false; // Wagers cannot be updated
+      allow delete: if false; // Wagers cannot be deleted
+    }
+
+    match /payments/{sessionId} {
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the betting platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "points": { "type": "number", "description": "Virtual currency balance" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "points", "createdAt"]
+    },
+    "Bet": {
+      "title": "Bet",
+      "description": "A prediction market or bet created by a user.",
+      "type": "object",
+      "properties": {
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "deadline": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["open", "closed", "resolved"] },
+        "winningOption": { "type": "string" },
+        "totalPool": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["creatorId", "creatorName", "title", "description", "options", "deadline", "status", "totalPool", "createdAt"]
+    },
+    "Wager": {
+      "title": "Wager",
+      "description": "A bet placed by a user on a specific option.",
+      "type": "object",
+      "properties": {
+        "betId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "option": { "type": "string" },
+        "amount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["betId", "userId", "userName", "option", "amount", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and point balances."
+    },
+    "/bets/{betId}": {
+      "schema": { "$ref": "#/entities/Bet" },
+      "description": "Stores all created bets."
+    },
+    "/wagers/{wagerId}": {
+      "schema": { "$ref": "#/entities/Wager" },
+      "description": "Stores all wagers placed on bets."
+    }
+  }
+}
